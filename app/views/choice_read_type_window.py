@@ -60,11 +60,13 @@ class ChoiceReadTypeWindow(QMainWindow):
         """)
         button.clicked.connect(callback)
         return button
+    
     def back(self):
-        from app.views.main_window import sadfsafasfsafWindow
-        self.w = sadfsafasfsafWindow()
+        from app.views.main_window import MainWindow
+        self.w = MainWindow()
         self.w.show()
         self.close()
+
     @staticmethod
     def darken_color(hex_color, factor=0.8):
         """Затемнение цвета для эффекта hover"""

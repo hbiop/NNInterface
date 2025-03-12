@@ -18,6 +18,31 @@ class DataPreprocessor:
   def read_data(self, url: str):
       self.data = self.reader.read_data(url)
 
+  def preprocess_data_for_predict(self):
+    df = pd.DataFrame(self.data)
+    numeric = df.select_dtypes(include=['int64', 'float64']).columns.to_list()
+    categorical = df.select_dtypes(include=['object', 'category', 'bool', 'datetime64']).columns.to_list()
+    numeric_transformer = Pipeline(
+      steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+      ]
+    )
+    categorical_transformer = Pipeline(
+      steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+      ]
+    )
+    preprocessor = ColumnTransformer(
+        transformers=[
+          ('num', numeric_transformer, numeric),
+          ('cat', categorical_transformer, categorical)
+      ]
+    )
+    self.preprocessed_data = preprocessor.fit_transform(df)
+    print(self.preprocessed_data)
+    
   def automatic_preprocess_data(self, prediction_column):
     df = pd.DataFrame(self.data)
     print(df)
@@ -46,5 +71,7 @@ class DataPreprocessor:
     print(y)
     self.preprocessed_data = preprocessor.fit_transform(X)
     self.preprocessed_label = categorical_transformer.fit_transform(y)
-    
-    print(self.preprocessed_label)
+    self.label_encoder = OneHotEncoder(sparse_output=False)
+    self.preprocessed_label = self.label_encoder.fit_transform(y.values.reshape(-1, 1))  
+    self.classes = self.label_encoder.categories_[0]
+

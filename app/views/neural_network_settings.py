@@ -1,8 +1,9 @@
 import sys
 import numpy as np
+import pickle
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QPushButton, QLabel, QLineEdit, QComboBox, QTableWidget,
-                            QTableWidgetItem, QTextEdit, QMessageBox, QProgressBar)
+                            QTableWidgetItem, QTextEdit, QMessageBox, QProgressBar, QFileDialog)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from app.files_preprocessing.file_preprocessor import DataPreprocessor
@@ -11,7 +12,7 @@ from app.neural_network.neural_network import NeuralNetwork
 class TrainingThread(QThread):
     update_progress = pyqtSignal(int, float)
     finished = pyqtSignal()
-
+    finish = pyqtSignal(bool)
     def __init__(self, nn, X, y, epochs, lr):
         super().__init__()
         self.nn = nn
@@ -32,6 +33,7 @@ class TrainingThread(QThread):
             avg_loss = total_loss / self.X.shape[0]
             self.update_progress.emit(epoch+1, avg_loss)
         self.finished.emit()
+        self.finish.emit(True)
 
 class NeuralNetworkGUI(QMainWindow):
     def __init__(self, preprocessor: DataPreprocessor):
@@ -40,7 +42,6 @@ class NeuralNetworkGUI(QMainWindow):
         self.nn = NeuralNetwork()
         self.initUI()
         
-        # Получаем предобработанные данные
         self.X = self.preprocessor.preprocessed_data
         self.y = self.preprocessor.preprocessed_label
 
@@ -52,17 +53,45 @@ class NeuralNetworkGUI(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
-
-        # Section for adding layers
+        self.btn_back = QPushButton("Выйти на главную")
+        self.btn_back.clicked.connect(self.back_to_main_screen)
+        layout.addWidget(self.btn_back)
         self.setup_layer_controls(layout)
-        
-        # Training controls
         self.setup_training_controls(layout)
+        self.btn_export = QPushButton("Экспортировать модель")
+        self.btn_export.setEnabled(False)
+        self.btn_export.clicked.connect(self.export)
+        layout.addWidget(self.btn_export)
+    
+    def export(self):
+        """Сохранение модели с выбором файла через диалог"""
+        try:
+            # Запрос пути для сохранения
+            filename, _ = QFileDialog.getSaveFileName(
+                self,
+                "Сохранить модель",
+                "",
+                "Model Files (*.pkl)"
+            )
+            
+            if not filename:
+                return  
+
+            
+
+            self.nn.save_model(filename)
+            
+            QMessageBox.information(self, "Успех", "Модель успешно экспортирована!")
         
-        # Prediction controls
-        self.setup_prediction_controls(layout)
-        # Остальная часть инициализации интерфейса без изменений
-        # ... (как в вашем оригинальном коде)
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить модель: {str(e)}")
+
+    def back_to_main_screen(self):
+        from app.views.main_window import MainWindow
+        self.w = MainWindow()
+        self.w.show()
+        self.close()
+
     def setup_layer_controls(self, layout):
         layer_group = QWidget()
         layer_layout = QVBoxLayout(layer_group)
@@ -71,7 +100,7 @@ class NeuralNetworkGUI(QMainWindow):
         config_layout = QHBoxLayout()
         self.output_size = QLineEdit()
         self.activation = QComboBox()
-        self.activation.addItems(['sigmoid', 'relu', 'tanh'])
+        self.activation.addItems(['sigmoid']) #Добавить функции
         
         add_btn = QPushButton("Добавить слой")
         add_btn.clicked.connect(self.add_layer)
@@ -97,7 +126,6 @@ class NeuralNetworkGUI(QMainWindow):
         train_group = QWidget()
         train_layout = QVBoxLayout(train_group)
 
-        # Training parameters
         param_layout = QHBoxLayout()
         self.epochs = QLineEdit('100')
         self.lr = QLineEdit('0.01')
@@ -107,7 +135,6 @@ class NeuralNetworkGUI(QMainWindow):
         param_layout.addWidget(QLabel("Скорость обучения:"))
         param_layout.addWidget(self.lr)
 
-        # Progress controls
         self.progress = QProgressBar()
         self.log = QTextEdit()
         self.log.setReadOnly(True)
@@ -120,23 +147,7 @@ class NeuralNetworkGUI(QMainWindow):
         train_layout.addWidget(self.log)
         train_layout.addWidget(train_btn)
         layout.addWidget(train_group)
-    def setup_prediction_controls(self, layout):  
-        predict_group = QWidget()
-        predict_layout = QVBoxLayout(predict_group)
 
-        self.input_data = QLineEdit()
-        self.output_data = QLineEdit()
-        self.output_data.setReadOnly(True)
-
-        predict_btn = QPushButton("Сделать предсказание")
-        predict_btn.clicked.connect(self.predict)
-
-        predict_layout.addWidget(QLabel("Входные данные (через запятую):"))
-        predict_layout.addWidget(self.input_data)
-        predict_layout.addWidget(QLabel("Результат:"))
-        predict_layout.addWidget(self.output_data)
-        predict_layout.addWidget(predict_btn)
-        layout.addWidget(predict_group)
     def add_layer(self):
         try:
             output_size = int(self.output_size.text())
@@ -155,8 +166,7 @@ class NeuralNetworkGUI(QMainWindow):
 
         except ValueError:
             QMessageBox.warning(self, "Ошибка", "Некорректные значения параметров слоя")
-            # Остальная часть метода без изменений
-            # ... (как в вашем оригинальном коде)
+
 
     def start_training(self):
         if len(self.nn.layers) == 0:
@@ -164,14 +174,17 @@ class NeuralNetworkGUI(QMainWindow):
             return
 
         try:
+            self.btn_export.setEnabled(False)
+            self.nn.output_layer_labels = self.preprocessor.classes
+            self.nn.add_layer(len(self.preprocessor.classes), "sigmoid")
             epochs = int(self.epochs.text())
             lr = float(self.lr.text())
 
             self.progress.setMaximum(epochs)
-            # Используем предобработанные данные
             self.thread = TrainingThread(self.nn, self.X, self.y, epochs, lr)
             self.thread.update_progress.connect(self.update_training)
             self.thread.finished.connect(self.training_finished)
+            self.thread.finish.connect(self.enable_export_button)
             self.thread.start()
 
         except ValueError:
@@ -181,6 +194,8 @@ class NeuralNetworkGUI(QMainWindow):
         self.progress.setValue(epoch)
         self.log.append(f"Эпоха {epoch}, Loss: {loss:.4f}")
 
+    def enable_export_button(self, flag: bool):
+        self.btn_export.setEnabled(flag)
     def training_finished(self):
         QMessageBox.information(self, "Обучение", "Обучение завершено!")
 
@@ -198,7 +213,6 @@ class NeuralNetworkGUI(QMainWindow):
             QMessageBox.warning(self, "Ошибка", f"Ошибка предсказания: {str(e)}")
 
 if __name__ == '__main__':
-    # Пример использования с тестовыми данными
     X = np.random.rand(100, 10)
     y = np.random.rand(100, 1)
     print("x", X)

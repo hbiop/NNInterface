@@ -1,3 +1,4 @@
+
 import os
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTableWidget, QLabel, QComboBox, QMessageBox, QFileDialog, QTableWidgetItem
@@ -6,9 +7,8 @@ from app.files_preprocessing.readers.csv_reader import CsvReader
 from app.files_preprocessing.file_preprocessor import DataPreprocessor
 from app.files_preprocessing.readers.excel_reader import ExcelReader
 from app.views.neural_network_settings import NeuralNetworkGUI
-
-
-class DataViewer(QWidget):
+from app.views.prediction_screen import PredictionWindow
+class DataLoader(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Data Viewer')
@@ -20,11 +20,6 @@ class DataViewer(QWidget):
         self.back_button.clicked.connect(self.back)
         self.layout.addWidget(self.back_button)
         self.layout.addWidget(self.load_button)
-
-        self.target_column_label = QLabel("Выберите целевой столбец:")
-        self.target_column_combo = QComboBox()
-        self.layout.addWidget(self.target_column_label)
-        self.layout.addWidget(self.target_column_combo)
 
         self.table = QTableWidget()
         self.layout.addWidget(self.table)
@@ -55,14 +50,8 @@ class DataViewer(QWidget):
         if file_path:
             self.preprocessor.read_data(file_path)
             self.display_data()
-            self.update_target_columns()
 
-    def update_target_columns(self):
-        """Обновляет список столбцов в выпадающем списке"""
-        self.target_column_combo.clear()
-        if self.preprocessor.data is not None:
-            columns = self.preprocessor.data.columns.tolist()
-            self.target_column_combo.addItems(columns)
+    
 
     def display_data(self):
         self.table.setRowCount(self.preprocessor.data.shape[0])
@@ -77,14 +66,7 @@ class DataViewer(QWidget):
             QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные!")
             return
 
-        selected_column = self.target_column_combo.currentText()
-        print(selected_column)
-        if not selected_column:
-            QMessageBox.warning(self, "Ошибка", "Выберите целевой столбец!")
-            return
-
-        self.preprocessor.automatic_preprocess_data(selected_column)
-
-        self.w = NeuralNetworkGUI(self.preprocessor)
+        #self.preprocessor.preprocess_data_for_predict()
+        self.w = PredictionWindow(self.preprocessor)
         self.w.show()
         self.close()

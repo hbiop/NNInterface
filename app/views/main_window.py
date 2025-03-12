@@ -2,9 +2,11 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QSizePolicy
 
 from app.views.choice_read_type_window import ChoiceReadTypeWindow
-
-
-class sadfsafasfsafWindow(QMainWindow):
+from app.views.creation_file import DataInputScreen
+from app.views.data_viewer_window import DataViewer
+from app.views.prediction_screen import PredictionWindow
+from app.views.data_loader import DataLoader
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Assistant")
@@ -28,16 +30,19 @@ class sadfsafasfsafWindow(QMainWindow):
 
         self.train_btn = self.create_button("Обучить модель", "#3498db", self.on_train_clicked)
         self.predict_btn = self.create_button("Сделать предсказание", "#2ecc71", self.on_predict_clicked)
+        self.create_file_btn = self.create_button("Создать файл", "#2ecc71", self.on_create_file_clicked)
 
         main_layout.addStretch(1)
         main_layout.addWidget(title_label)
         main_layout.addStretch(1)
         main_layout.addWidget(self.train_btn)
         main_layout.addWidget(self.predict_btn)
+        main_layout.addWidget(self.create_file_btn)
         main_layout.addStretch(2)
 
         main_layout.setStretchFactor(title_label, 1)
         main_layout.setStretchFactor(self.train_btn, 2)
+        main_layout.setStretchFactor(self.predict_btn, 2)
         main_layout.setStretchFactor(self.predict_btn, 2)
 
     def create_button(self, text, color, callback):
@@ -67,10 +72,16 @@ class sadfsafasfsafWindow(QMainWindow):
         return f"#{int(rgb[0] * factor):02x}{int(rgb[1] * factor):02x}{int(rgb[2] * factor):02x}"
 
     def on_train_clicked(self):
-        self.w = ChoiceReadTypeWindow()
+        self.w = DataViewer()
+        self.w.show()
+        self.close()
+
+    def on_create_file_clicked(self):
+        self.w = DataInputScreen()
         self.w.show()
         self.close()
 
     def on_predict_clicked(self):
-        print("Запуск процесса предсказания...")
-        # Здесь можно добавить логику предсказания
+        self.w = DataLoader()
+        self.w.show()
+        self.close()

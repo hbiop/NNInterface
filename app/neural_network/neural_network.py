@@ -1,14 +1,18 @@
 import numpy as np
 from app.neural_network.activation_functions.sigmoid import SigmoidFunction
 from app.neural_network.layer import Layer
-
+import pickle
 class NeuralNetwork:
     def __init__(self):
         self.layers = []
+        self.output_layer_labels = []
         self.encoder = None
 
+    def save_model(self, filename):
+            with open(filename, 'wb') as file:
+                pickle.dump(self, file)
+                
     def add_layer(self, output_size, activation_function, input_size=None):
-        """Добавляет слой с автоматическим определением input_size"""
         if not self.layers and input_size is None:
             raise ValueError("Для первого слоя необходимо указать input_size")
             
