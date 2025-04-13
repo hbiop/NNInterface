@@ -38,6 +38,7 @@ class NeuralNetwork:
         for epoch in range(epochs):
             for i in range(X.shape[0]):
                 output = self.forward(X[i:i+1])
+                print(output)
                 loss = self.loss(y[i:i+1], output)
                 print(f'Epoch {epoch + 1}/{epochs}, Sample {i + 1}/{X.shape[0]}, Loss: {loss}')
                 output_gradient = self.loss_derivative(y[i:i+1], output)
@@ -45,7 +46,8 @@ class NeuralNetwork:
 
     @staticmethod
     def loss(y_true, y_pred):
-        return np.mean((y_true - y_pred) ** 2)  # MSE
+        #print(np.mean((y_true - y_pred) ** 2))
+        return np.mean((y_true - y_pred) ** 2)
 
     @staticmethod
     def loss_derivative(y_true, y_pred):

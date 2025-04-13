@@ -1,6 +1,6 @@
 
 import os
-
+import pickle
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTableWidget, QLabel, QComboBox, QMessageBox, QFileDialog, QTableWidgetItem
 
 from app.files_preprocessing.readers.csv_reader import CsvReader

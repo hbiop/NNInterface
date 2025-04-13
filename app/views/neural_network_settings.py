@@ -26,6 +26,7 @@ class TrainingThread(QThread):
             total_loss = 0
             for i in range(self.X.shape[0]):
                 output = self.nn.forward(self.X[i:i+1])
+                #print(output)
                 loss = self.nn.loss(self.y[i:i+1], output)
                 output_gradient = self.nn.loss_derivative(self.y[i:i+1], output)
                 self.nn.backward(output_gradient, self.lr)
@@ -64,7 +65,6 @@ class NeuralNetworkGUI(QMainWindow):
         layout.addWidget(self.btn_export)
     
     def export(self):
-        """Сохранение модели с выбором файла через диалог"""
         try:
             # Запрос пути для сохранения
             filename, _ = QFileDialog.getSaveFileName(
@@ -77,9 +77,14 @@ class NeuralNetworkGUI(QMainWindow):
             if not filename:
                 return  
 
-            
+            objects_to_save = {
+                "neural_network": self.nn,
+                "data_preprocessor": self.preprocessor
+            }
 
-            self.nn.save_model(filename)
+            with open(filename, "wb") as f:
+                pickle.dump(objects_to_save, f)
+            #self.nn.save_model(filename)
             
             QMessageBox.information(self, "Успех", "Модель успешно экспортирована!")
         
@@ -192,7 +197,7 @@ class NeuralNetworkGUI(QMainWindow):
     
     def update_training(self, epoch, loss):
         self.progress.setValue(epoch)
-        self.log.append(f"Эпоха {epoch}, Loss: {loss:.4f}")
+        self.log.append(f"Эпоха {epoch}, Loss: {loss}")#:.4f
 
     def enable_export_button(self, flag: bool):
         self.btn_export.setEnabled(flag)

@@ -82,6 +82,6 @@ class MainWindow(QMainWindow):
         self.close()
 
     def on_predict_clicked(self):
-        self.w = DataLoader()
+        self.w = PredictionWindow()
         self.w.show()
         self.close()
