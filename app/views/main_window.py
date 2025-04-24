@@ -9,7 +9,7 @@ from app.views.data_loader import DataLoader
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("AI Assistant")
+        self.setWindowTitle("Нейронная сеть")
         self.setMinimumSize(400, 300)
 
         central_widget = QWidget()
@@ -18,7 +18,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(50, 50, 50, 50)
         main_layout.setSpacing(30)
 
-        title_label = QLabel("AI Assistant")
+        title_label = QLabel("Нейронная сеть")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("""
             QLabel {

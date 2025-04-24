@@ -24,13 +24,14 @@ class DataPreprocessor:
   
   def preprocess_data_for_predict(self, data):
      df = pd.DataFrame(data)
+     print(f"pred s d{df.shape}")
      return self.preprocessor.transform(df)
 
   def automatic_preprocess_data(self, prediction_column):
     df = pd.DataFrame(self.data)
-    df = pd.DataFrame(self.data)
     df = shuffle(df)
-    X = df.drop(prediction_column, axis=1)
+    X = df.drop(prediction_column, axis=1 )
+
     y = df[[prediction_column]]
     numeric = X.select_dtypes(include=['int64', 'float64']).columns.to_list()
     categorical = X.select_dtypes(include=['object', 'category', 'bool', 'datetime64']).columns.to_list()
@@ -52,8 +53,8 @@ class DataPreprocessor:
           ('cat', categorical_transformer, categorical)
       ]
     )
-    print(y)
     self.preprocessed_data = self.preprocessor.fit_transform(X)
+
     self.preprocessed_label = categorical_transformer.fit_transform(y)
     self.label_encoder = OneHotEncoder(sparse_output=False)
     self.preprocessed_label = self.label_encoder.fit_transform(y.values.reshape(-1, 1))  
