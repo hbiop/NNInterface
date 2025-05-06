@@ -11,13 +11,15 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from app.files_preprocessing.file_preprocessor import DataPreprocessor
 from app.neural_network.neural_network import NeuralNetwork
 
+
 class TrainingThread(QThread):
     update_progress = pyqtSignal(int, float)
     finished = pyqtSignal()
     finish = pyqtSignal(bool)
+
     def __init__(self, nn, X, y, epochs, lr):
         super().__init__()
-        self.nn = nn
+        self.nn: NeuralNetwork = nn
         self.X = X
         self.y = y
         self.epochs = epochs
@@ -25,27 +27,30 @@ class TrainingThread(QThread):
 
     def run(self):
         for epoch in range(self.epochs):
-            epoch_loss = 0
-            n_samples = self.X.shape[0]
-            # Перемешивание данных
-            indices = np.random.permutation(n_samples)
+            # Мини-батчи
+            indices = np.random.permutation(self.X.shape[0])
             X_shuffled = self.X[indices]
             y_shuffled = self.y[indices]
+
             BATCH_SIZE = 20
-            verbose = True
-            # Пакетная обработка
-            for i in range(0, n_samples, BATCH_SIZE):
-                batch_X = X_shuffled[i:i+BATCH_SIZE]
-                batch_y = y_shuffled[i:i+BATCH_SIZE]
-                output = self.nn.forward(batch_X)
-                loss = self.nn.loss(batch_y, output)
-                epoch_loss += loss
-                output_gradient = self.nn.loss_derivative(batch_y, output)
-                self.nn.backward(output_gradient, self.lr)
-            if verbose and (epoch % 10 == 0 or epoch == self.epochs-1):
-                avg_loss = epoch_loss / (n_samples / BATCH_SIZE)
-                self.update_progress.emit(epoch+1, avg_loss)
-        print(f"после обучения {self.nn.layers[0].weights}")
+            total_loss = 0
+
+            for i in range(0, len(X_shuffled), BATCH_SIZE):
+                batch_X = X_shuffled[i:i + BATCH_SIZE]
+                batch_y = y_shuffled[i:i + BATCH_SIZE]
+
+                # Прямое распространение и вычисление ошибки
+                output, _ = self.nn.forward(batch_X)
+                loss = np.mean((output - batch_y) ** 2)
+                total_loss += loss
+
+                # Обратное распространение
+                self.nn.train(batch_X, batch_y, learning_rate=self.lr)
+
+            # Расчет средней ошибки за эпоху
+            avg_loss = total_loss / (len(X_shuffled) / BATCH_SIZE)
+            self.update_progress.emit(epoch + 1, avg_loss)
+
         self.finished.emit()
         self.finish.emit(True)
 
@@ -54,10 +59,10 @@ class NeuralNetworkGUI(QMainWindow):
     def __init__(self, preprocessor: DataPreprocessor):
         super().__init__()
         self.preprocessor = preprocessor
-        self.nn = NeuralNetwork()
         self.initUI()
         print(self.preprocessor.preprocessed_data.shape)
         self.X = self.preprocessor.preprocessed_data
+        self.nn = NeuralNetwork(self.X.shape[1])
         self.y = self.preprocessor.preprocessed_label
 
     def initUI(self):
@@ -257,11 +262,7 @@ class NeuralNetworkGUI(QMainWindow):
 
             activation = self.activation.currentText()
 
-            if not self.nn.layers:
-                input_size = self.X.shape[1]
-                self.nn.add_layer(output_size, activation, input_size)
-            else:
-                self.nn.add_layer(output_size, activation)
+            self.nn.add_layer(output_size, activation)
 
             row = self.layers_table.rowCount()
             self.layers_table.insertRow(row)
@@ -274,15 +275,14 @@ class NeuralNetworkGUI(QMainWindow):
             QMessageBox.warning(self, "Ошибка", f"Некорректные параметры слоя:\n{str(e)}")
 
     def start_training(self):
-        print(f"До обучения: {self.nn.layers[0].weights}")
         if len(self.nn.layers) == 0:
-            QMessageBox.warning(self, "Ошибка", "Пожалуйста, добавьте хотя бы один слой!")
+            QMessageBox.warning(self, "Ошибка", "Добавьте слои перед обучением!")
             return
 
         try:
-            self.btn_export.setEnabled(False)
-            self.nn.output_layer_labels = self.preprocessor.classes
-            self.nn.add_layer(len(self.preprocessor.classes), "sigmoid")
+            last_layer_size = self.nn.layers[-1]['weights'].shape[1]
+            if last_layer_size != len(self.preprocessor.classes):
+                self.nn.add_layer(len(self.preprocessor.classes), activation='sigmoid')
 
             epochs = int(self.epochs.text())
             lr = float(self.lr.text())
@@ -291,14 +291,20 @@ class NeuralNetworkGUI(QMainWindow):
             self.progress.setValue(0)
             self.log.clear()
 
-            self.thread = TrainingThread(self.nn, self.X, self.y, epochs, lr)
+            self.thread = TrainingThread(
+                self.nn,
+                self.X,
+                self.y,
+                epochs,
+                lr
+            )
             self.thread.update_progress.connect(self.update_training)
             self.thread.finished.connect(self.training_finished)
-            self.thread.finish.connect(self.enable_export_button)
+            self.thread.finish.connect(lambda: self.btn_export.setEnabled(True))
             self.thread.start()
 
-        except ValueError:
-            QMessageBox.warning(self, "Ошибка", "Пожалуйста, проверьте параметры обучения")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка инициализации: {str(e)}")
 
     def update_training(self, epoch, loss):
         self.progress.setValue(epoch)

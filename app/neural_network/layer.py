@@ -6,7 +6,6 @@ class Layer:
         self.input_size = input_size
         self.output_size = output_size
         
-        # Инициализация Ксавье
         self.weights = np.random.randn(input_size, output_size) * np.sqrt(2. / (input_size + output_size))
         self.biases = np.zeros((1, output_size))
         
