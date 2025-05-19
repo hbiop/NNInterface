@@ -4,6 +4,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTableWidget, QLabel, QComboBox, QMessageBox, \
     QFileDialog, QTableWidgetItem, QApplication, QProgressDialog, QGroupBox, QHBoxLayout, QHeaderView
 
+from app.database.database_manager import DatabaseManager
 from app.files_preprocessing.readers.csv_reader import CsvReader
 from app.files_preprocessing.file_preprocessor import DataPreprocessor
 from app.files_preprocessing.readers.excel_reader import ExcelReader
@@ -11,8 +12,10 @@ from app.views.neural_network_settings import NeuralNetworkGUI
 
 
 class DataViewer(QWidget):
-    def __init__(self):
+    def __init__(self, file_id=None):
         super().__init__()
+        self.file_id = file_id
+        self.db = DatabaseManager()
 
         # Настройки окна
         self.setWindowTitle('Просмотр и подготовка данных')
@@ -135,6 +138,8 @@ class DataViewer(QWidget):
 
         # Инициализация препроцессора
         self.preprocessor = DataPreprocessor(CsvReader())
+        if file_id is not None:
+            self.load_existing_file(file_id)
 
     def back(self):
         from app.views.main_window import MainWindow
@@ -157,7 +162,7 @@ class DataViewer(QWidget):
 
         try:
             _, extension = os.path.splitext(file_path)
-            print(f"Тип файла: {extension}")
+            file_type = extension[1:].upper()  # "csv" или "xlsx"
 
             if extension == ".csv":
                 self.preprocessor.reader = CsvReader()
@@ -166,17 +171,58 @@ class DataViewer(QWidget):
             else:
                 raise ValueError("Неподдерживаемый формат файла")
 
+            # Читаем данные
             self.preprocessor.read_data(file_path)
+
+            # Сохраняем в базу данных
+            self.file_id = self.db.save_file(
+                file_path=file_path,
+                file_type=file_type,
+                data_frame=self.preprocessor.data
+            )
+
             self.display_data()
             self.update_target_columns()
             self.confirm_button.setEnabled(True)
 
-            QMessageBox.information(self, "Успех", "Данные успешно загружены!")
+            QMessageBox.information(self, "Успех", "Данные успешно загружены и сохранены!")
 
         except Exception as e:
             QMessageBox.critical(self, "Ошибка загрузки",
                                  f"Не удалось загрузить данные:\n{str(e)}")
 
+    def load_existing_file(self, file_id):
+        try:
+            # Пытаемся загрузить предобработанные данные
+            preprocessed = self.db.get_preprocessed_data(file_id)
+            if preprocessed:
+                self.preprocessor = preprocessed['preprocessor']
+                self.display_data()
+                self.update_target_columns()
+                self.confirm_button.setEnabled(True)
+                return
+
+            # Если предобработанных данных нет, загружаем оригинальный файл
+            file_data = self.db.get_file_data(file_id)
+            if isinstance(file_data, str):  # это путь к файлу
+                _, extension = os.path.splitext(file_data)
+
+                if extension == ".csv":
+                    self.preprocessor.reader = CsvReader()
+                elif extension == ".xlsx":
+                    self.preprocessor.reader = ExcelReader()
+
+                self.preprocessor.read_data(file_data)
+            else:  # это DataFrame
+                self.preprocessor.data = file_data
+
+            self.display_data()
+            self.update_target_columns()
+            self.confirm_button.setEnabled(True)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка загрузки",
+                                 f"Не удалось загрузить файл из базы данных:\n{str(e)}")
     def update_target_columns(self):
         """Обновляет список столбцов для выбора целевой переменной"""
         self.target_column_combo.clear()
@@ -217,16 +263,26 @@ class DataViewer(QWidget):
             return
 
         try:
-            # Прогресс-диалог
             progress = QProgressDialog("Подготовка данных...", "Отмена", 0, 0, self)
             progress.setWindowTitle("Обработка данных")
             progress.setWindowModality(Qt.WindowModal)
             progress.show()
 
-            QApplication.processEvents()  # Обновляем UI
+            QApplication.processEvents()
 
             # Предобработка данных
             self.preprocessor.automatic_preprocess_data(selected_column)
+
+            # Убедимся, что передаем numpy array
+            data_to_store = self.preprocessor.preprocessed_data
+
+            # Сохраняем предобработанные данные в базу
+            self.db.save_preprocessed_data(
+                file_id=self.file_id,
+                target_column=selected_column,
+                preprocessor=self.preprocessor,
+                data_sample=data_to_store  # передаем numpy array напрямую
+            )
 
             progress.close()
 
@@ -236,5 +292,6 @@ class DataViewer(QWidget):
             self.close()
 
         except Exception as e:
+            progress.close()
             QMessageBox.critical(self, "Ошибка обработки",
                                  f"Не удалось подготовить данные:\n{str(e)}")

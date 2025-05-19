@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButt
 from app.views.choice_read_type_window import ChoiceReadTypeWindow
 from app.views.creation_file import DataInputScreen
 from app.views.data_viewer_window import DataViewer
+from app.views.file_history_window import FileHistoryWindow
 from app.views.prediction_screen import PredictionWindow
 from app.views.data_loader import DataLoader
 class MainWindow(QMainWindow):
@@ -72,7 +73,7 @@ class MainWindow(QMainWindow):
         return f"#{int(rgb[0] * factor):02x}{int(rgb[1] * factor):02x}{int(rgb[2] * factor):02x}"
 
     def on_train_clicked(self):
-        self.w = DataViewer()
+        self.w = FileHistoryWindow()
         self.w.show()
         self.close()
 

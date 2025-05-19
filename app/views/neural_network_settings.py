@@ -1,13 +1,19 @@
+import json
+import sqlite3
 import sys
+from datetime import datetime
+
 import numpy as np
 import pickle
 
 from PyQt5.QtGui import QIntValidator, QDoubleValidator
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QComboBox, QTableWidget,
-                             QTableWidgetItem, QTextEdit, QMessageBox, QProgressBar, QFileDialog, QGroupBox)
+                             QTableWidgetItem, QTextEdit, QMessageBox, QProgressBar, QFileDialog, QGroupBox, QDialog,
+                             QTabWidget, QFormLayout)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-
+from app.database.database_manager import DatabaseManager
+from app.database.training_logger import TrainingLogger
 from app.files_preprocessing.file_preprocessor import DataPreprocessor
 from app.neural_network.neural_network import NeuralNetwork
 
@@ -17,13 +23,16 @@ class TrainingThread(QThread):
     finished = pyqtSignal()
     finish = pyqtSignal(bool)
 
-    def __init__(self, nn, X, y, epochs, lr):
+    def __init__(self, nn, X, y, epochs, lr, logger, session_id):
         super().__init__()
         self.nn: NeuralNetwork = nn
         self.X = X
         self.y = y
         self.epochs = epochs
         self.lr = lr
+        self.logger = logger
+        self.session_id = session_id
+        self.loss_history = []
 
     def run(self):
         for epoch in range(self.epochs):
@@ -49,8 +58,12 @@ class TrainingThread(QThread):
 
             # Расчет средней ошибки за эпоху
             avg_loss = total_loss / (len(X_shuffled) / BATCH_SIZE)
+            self.loss_history.append(avg_loss)
             self.update_progress.emit(epoch + 1, avg_loss)
+            self.logger.log_epoch(self.session_id, epoch + 1, avg_loss)
 
+        final_loss = self.loss_history[-1] if self.loss_history else 0
+        self.logger.complete_session(self.session_id, final_loss)
         self.finished.emit()
         self.finish.emit(True)
 
@@ -287,6 +300,22 @@ class NeuralNetworkGUI(QMainWindow):
             epochs = int(self.epochs.text())
             lr = float(self.lr.text())
 
+            # Получаем конфигурацию слоев
+            layers_config = []
+            for layer in self.nn.layers:
+                layers_config.append({
+                    'size': layer['weights'].shape[1],
+                    'activation': layer['activation']
+                })
+
+            # Создаем логгер и начинаем новую сессию
+            self.logger = TrainingLogger()
+            session_id = self.logger.start_new_session(
+                epochs=epochs,
+                lr=lr,
+                layers_config=layers_config
+            )
+
             self.progress.setMaximum(epochs)
             self.progress.setValue(0)
             self.log.clear()
@@ -296,7 +325,9 @@ class NeuralNetworkGUI(QMainWindow):
                 self.X,
                 self.y,
                 epochs,
-                lr
+                lr,
+                self.logger,
+                session_id
             )
             self.thread.update_progress.connect(self.update_training)
             self.thread.finished.connect(self.training_finished)
